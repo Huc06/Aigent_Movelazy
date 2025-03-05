@@ -48,6 +48,7 @@ const handleApiRequest = async (req, res) => {
                 can't do with your currently available tools, you must say so, and encourage them to implement it
                 themselves using the Aptos Agent Kit, recommend they go to https://www.aptosagentkit.xyz for more information. Be
                 concise and helpful with your responses. Refrain from restating your tools' descriptions unless it is explicitly requested.
+                Additionally, you can handle Move language functions of Aptos.
             `,
         });
 
@@ -87,17 +88,16 @@ const handleApiRequest = async (req, res) => {
                 },
             });
 
-            // Sử dụng Readable để gửi dữ liệu đến client
             const reader = transformStream.getReader();
             res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
 
-            // Đọc dữ liệu từ transformStream và gửi đến res
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
                 res.write(value);
             }
-            res.end(); // Kết thúc phản hồi
+            res.end(); // End the response
+            return; // Add return to ensure no additional response is sent
         } else {
             const result = await agent.invoke({ messages });
             return res.json({
