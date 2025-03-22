@@ -6,7 +6,7 @@ const apiRoutes = require('./routes/apiRoutes');
 const axios = require('axios');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 // Middleware to parse JSON
 app.use(express.json());
