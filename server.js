@@ -1,14 +1,12 @@
 require('dotenv').config();
 
 const express = require('express');
-const { Aptos, Ed25519PrivateKey } = require("@aptos-labs/ts-sdk");
 const { ChatAnthropic } = require("@langchain/anthropic");
-const { AptosAccount } = require('aptos');
-const axios = require('axios');
 const apiRoutes = require('./routes/apiRoutes');
+const axios = require('axios');
 
 const app = express();
-const port = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Middleware to parse JSON
 app.use(express.json());
@@ -19,71 +17,67 @@ const llm = new ChatAnthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// Function to create a new random Aptos account using AptosAccount
-const createNewRandomAccount = () => {
-    const account = new AptosAccount();
-    return {
-        address: account.address().hex(),
-        privateKey: account.toPrivateKeyObject().privateKeyHex,
-    };
-};
-
-// API route to create a new random account
-app.post('/api/createNewRandomAccount', (req, res) => {
-    const account = createNewRandomAccount();
-    const response = {
-        messages: [
-            {
-                role: "user",
-                content: `{% ai #createRandomAccount model="openai/gpt-4o-mini" tools="*" structuredOutputs="{address: string, privateKey: string}" /%}`
-            }
-        ],
-        show_intermediate_steps: false,
-        structuredOutputs: {
-            address: account.address,
-            privateKey: account.privateKey
-        }
-    };
-    res.json(response);
-});
-
-// Function to fund an account using faucet
-const fundAccountFaucet = async (address) => {
-    try {
-        const response = await axios.post(`https://faucet.devnet.aptoslabs.com/mint?amount=1000000&address=${address}`);
-        return response.data;
-    } catch (error) {
-        console.error('Error funding account:', error.response ? error.response.data : error.message);
-        return { error: 'Failed to fund account', details: error.response ? error.response.data : error.message };
-    }
-};
-
-// API route to fund an account using faucet
-app.post('/api/fundAccountFaucet', async (req, res) => {
-    const { address } = req.body;
-    const result = await fundAccountFaucet(address);
-    const response = {
-        title: "Fund Account Faucet",
-        description: "Fund an account with the faucet",
-        input: {
-            address: address
-        },
-        messages: [
-            {
-                role: "user",
-                content: `Let's fund an account with the faucet. Here's the address: ${address}`
-            }
-        ],
-        show_intermediate_steps: false,
-        result: result
-    };
-    res.json(response);
-});
-
 // Use existing routes
 app.use('/api', apiRoutes);
 
+app.post('/api/module-info', async (req, res) => {
+  const { address } = req.body; // Nhận địa chỉ từ body của yêu cầu
+
+  if (!address) {
+    return res.status(400).json({ error: "Address is required" });
+  }
+
+  const options = {
+    method: 'GET',
+    url: `https://fullnode.devnet.aptoslabs.com/v1/accounts/${address}/modules`,
+    headers: { Accept: 'application/json, application/x-bcs' }
+  };
+
+  try {
+    const { data } = await axios.request(options);
+    res.json(data); // Gửi dữ liệu về client
+  } catch (error) {
+    console.error("Error fetching data:", error);
+    res.status(500).json({ error: "An error occurred while fetching data" });
+  }
+});
+
+app.post('/api/execute-move', async (req, res) => {
+  const { functionName, typeArguments, arguments } = req.body; // Nhận tên hàm, kiểu tham số và tham số từ body của yêu cầu
+
+  if (!functionName || !typeArguments || !arguments) {
+    return res.status(400).json({ error: "Function name, type arguments, and arguments are required" });
+  }
+
+  const options = {
+    method: 'POST',
+    url: 'https://fullnode.devnet.aptoslabs.com/v1/view',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json, application/x-bcs'
+    },
+    data: {
+      function: functionName,
+      type_arguments: typeArguments,
+      arguments: arguments
+    }
+  };
+
+  try {
+    const { data } = await axios.request(options);
+    console.log(data);
+    res.json(data); // Gửi phản hồi về client
+  } catch (error) {
+    if (error.response && error.response.status === 410) {
+      res.status(410).json({ error: "Requested ledger version has been pruned" });
+    } else {
+      console.error(error);
+      res.status(500).json({ error: "An error occurred during the execution" });
+    }
+  }
+});
+
 // Start server
-app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
+app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
 });

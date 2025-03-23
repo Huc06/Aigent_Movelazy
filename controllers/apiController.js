@@ -93,30 +93,29 @@ const handleApiRequest = async (req, res) => {
         },
       });
 
-      // Sử dụng Readable để gửi dữ liệu đến client
-      const reader = transformStream.getReader();
-      res.writeHead(200, { "Content-Type": "application/octet-stream" });
+            const reader = transformStream.getReader();
+            res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
 
-      // Đọc dữ liệu từ transformStream và gửi đến res
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        res.write(value);
-      }
-      res.end(); // Kết thúc phản hồi
-    } else {
-      const result = await agent.invoke({ messages });
-      return res.json({
-        messages: result.messages.map(convertLangChainMessageToVercelMessage),
-      });
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                res.write(value);
+            }
+            res.end(); // End the response
+            return; // Add return to ensure no additional response is sent
+        } else {
+            const result = await agent.invoke({ messages });
+            return res.json({
+                messages: result.messages.map(convertLangChainMessageToVercelMessage),
+            });
+        }
+    } catch (error) {
+        console.error("Request error:", error);
+        return res.status(500).json({
+            error: error instanceof Error ? error.message : "An error occurred",
+            status: "error",
+        });
     }
-  } catch (error) {
-    console.error("Request error:", error);
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : "An error occurred",
-      status: "error",
-    });
-  }
 };
 
 module.exports = { handleApiRequest };
